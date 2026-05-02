@@ -24,10 +24,17 @@
       <input class="sdpi-item-value" placeholder="MSFT, AAPL, FB, GOOG, AAPL" type="text" name="symbol"
         style="text-transform:uppercase" value="" />
     </div>
+    <div class="sdpi-item" id="provider">
+      <div class="sdpi-item-label">Provider</div>
+      <select class="sdpi-item-value select" name="provider">
+        <option value="finnhub">Finnhub</option>
+        <option value="yahoo">Yahoo</option>
+      </select>
+    </div>
     <div class="sdpi-item">
       <details open class="message question noInnerMargins">
         <summary>API Key</summary>
-        <p>Please enter your <a href="https://finnhub.io/dashboard" target="_blank">FinnHub API key</a>.</p>
+        <p>Please enter your <a href="https://finnhub.io/dashboard" target="_blank">FinnHub API key</a>. Yahoo does not require one.</p>
         <div class="sdpi-item" id="apikey">
           <input class="sdpi-item-value" type="text" name="apikey" value="" />
         </div>
