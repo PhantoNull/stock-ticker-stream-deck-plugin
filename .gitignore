@@ -4,3 +4,4 @@
 .DS_Store
 /.vscode/.tmp/
 /com.exension.stocks.sdPlugin/stocks.log
+/release/*.streamDeckPlugin
