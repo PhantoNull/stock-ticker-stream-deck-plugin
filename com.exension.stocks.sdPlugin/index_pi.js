@@ -55,6 +55,12 @@ function connectElgatoStreamDeckSocket(
     ) {
       document.querySelector("#apikey input").value = jsonObj.payload.apikey;
     }
+    if (
+      getPropFromString(jsonObj, "payload.provider") &&
+      event === "sendToPropertyInspector"
+    ) {
+      document.querySelector("#provider select").value = jsonObj.payload.provider;
+    }
   };
 }
 

@@ -1,0 +1,17 @@
+{
+  "name": "stock-ticker-stream-deck-plugin",
+  "private": true,
+  "version": "1.2.1",
+  "description": "Modern local build pipeline for the stock ticker Stream Deck plugin.",
+  "scripts": {
+    "build": "powershell -ExecutionPolicy Bypass -File .\\scripts\\build-plugin.ps1",
+    "validate": "powershell -ExecutionPolicy Bypass -File .\\scripts\\build-plugin.ps1 -SkipBuild; streamdeck validate --no-update-check .\\com.exension.stocks.sdPlugin",
+    "link": "streamdeck link .\\com.exension.stocks.sdPlugin",
+    "restart": "streamdeck restart com.exension.stocks",
+    "pack": "powershell -ExecutionPolicy Bypass -File .\\scripts\\build-plugin.ps1 -SkipBuild; streamdeck pack --no-update-check .\\com.exension.stocks.sdPlugin -o .\\release -f",
+    "dev": "npm run build && npm run validate && npm run link"
+  },
+  "devDependencies": {
+    "@elgato/cli": "^1.7.4"
+  }
+}

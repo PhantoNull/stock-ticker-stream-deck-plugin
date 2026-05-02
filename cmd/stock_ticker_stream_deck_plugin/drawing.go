@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"io/ioutil"
 	"log"
+	"math"
 	"strings"
 	"sync"
 
@@ -63,19 +64,182 @@ func DrawTile(title string, price, change, changePercent float32, status string,
 		y:        50,
 		clr:      white,
 	}, img)
+	changeColor := red
+	if changePercent >= 0 {
+		changeColor = green
+	}
 	drawLabel(&Label{
-		text:     fmt.Sprintf("%.2f %.2f%%", change, changePercent),
-		fontName: "Lato-Regular.ttf",
+		text:     fmt.Sprintf("%.2f%%", changePercent),
+		fontName: "Muli-ExtraBold.ttf",
 		fontSize: 11,
 		x:        4,
 		y:        65,
-		clr:      white,
+		clr:      changeColor,
 	}, img)
 	b, err := EncodePNG(img)
 	if err != nil {
 		log.Fatalf("EncodePNG: %v\n", err)
 	}
 	return &b
+}
+
+// BuildHistoryTileSVG renders the historical chart as an SVG closely matching the Spotlight Coin visual style.
+func BuildHistoryTileSVG(title string, price float32, points []float32, changePercent float32, rangeLabel string) string {
+	points = aggregateSeries(points, 10)
+	stroke := "#FF3B30"
+	fillAccent := "#650212"
+	arrow := "▼"
+	if changePercent >= 0 {
+		stroke = "#34C759"
+		fillAccent = "#275C35"
+		arrow = "▲"
+	} else if changePercent == 0 {
+		arrow = "■"
+	}
+
+	plotBottom := 86.0
+	plotHeight := 22.0
+	minVal, maxVal := points[0], points[0]
+	for _, point := range points[1:] {
+		if point < minVal {
+			minVal = point
+		}
+		if point > maxVal {
+			maxVal = point
+		}
+	}
+	valueRange := maxVal - minVal
+	if valueRange == 0 {
+		valueRange = 1
+	}
+
+	stepX := 72.0 / float64(max(len(points)-1, 1))
+	linePoints := make([]string, 0, len(points))
+	areaPoints := make([]string, 0, len(points)+2)
+	avg := float32(0)
+	for i, point := range points {
+		avg += point
+		x := stepX * float64(i)
+		y := plotBottom - (float64(point-minVal)/float64(valueRange))*plotHeight
+		linePoints = append(linePoints, fmt.Sprintf("%.2f,%.2f", x, y))
+		areaPoints = append(areaPoints, fmt.Sprintf("%.2f,%.2f", x, y))
+	}
+	avg /= float32(len(points))
+	baselineY := plotBottom - (float64(avg-minVal)/float64(valueRange))*plotHeight
+	areaPoints = append(areaPoints, "72,100", "0,100")
+
+	return fmt.Sprintf(
+		`<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%%" stop-color="#000000"/>
+<stop offset="30%%" stop-color="#000000"/>
+<stop offset="100%%" stop-color="%s"/>
+</linearGradient>
+<linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%%" stop-color="%s"/>
+<stop offset="100%%" stop-color="#000000"/>
+</linearGradient>
+</defs>
+<rect width="100" height="100" fill="url(#grad)"/>
+<line x1="0" y1="58" x2="0" y2="100" stroke="#ffffff" stroke-width="1" opacity="0.25"/>
+<line x1="25" y1="58" x2="25" y2="100" stroke="#ffffff" stroke-width="1" opacity="0.25"/>
+<line x1="50" y1="58" x2="50" y2="100" stroke="#ffffff" stroke-width="1" opacity="0.25"/>
+<line x1="75" y1="58" x2="75" y2="100" stroke="#ffffff" stroke-width="1" opacity="0.25"/>
+<line x1="100" y1="58" x2="100" y2="100" stroke="#ffffff" stroke-width="1" opacity="0.25"/>
+<polygon points="%s" fill="url(#areaGradient)" />
+<polyline points="%s" fill="none" stroke="%s" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="0" y1="%.2f" x2="100" y2="%.2f" stroke="%s" stroke-width="1.5" stroke-dasharray="6,2" opacity="0.55" />
+<text x="6" y="20" font-size="17" font-weight="900" fill="white" font-family="Arial">%s</text>
+<text x="84" y="20" font-size="12" font-weight="900" fill="white" font-family="Arial">%s</text>
+<text x="6" y="42" font-size="17" font-weight="700" fill="white" font-family="Arial">%s</text>
+<text x="6" y="88" font-size="17" font-weight="700" fill="%s" font-family="Arial">%s</text>
+<text x="84" y="88" font-size="17" font-weight="900" fill="%s" font-family="Arial">%s</text>
+</svg>`,
+		fillAccent,
+		fillAccent,
+		strings.Join(areaPoints, " "),
+		strings.Join(linePoints, " "),
+		stroke,
+		baselineY,
+		baselineY,
+		stroke,
+		escapeSVGText(title),
+		escapeSVGText(rangeLabel),
+		escapeSVGText(formatHistoryPrice(price)),
+		stroke,
+		escapeSVGText(fmt.Sprintf("%s%%", formatCompactPercent(absf(changePercent)))),
+		stroke,
+		escapeSVGText(arrow),
+	)
+}
+
+func absf(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func formatHistoryPrice(price float32) string {
+	if price >= 1000 {
+		return fmt.Sprintf("%.0f", price)
+	}
+	if price >= 100 {
+		return fmt.Sprintf("%.2f", price)
+	}
+	return fmt.Sprintf("%.2f", price)
+}
+
+func formatCompactPercent(v float32) string {
+	if math.Abs(float64(v)) >= 10 {
+		return fmt.Sprintf("%.1f", v)
+	}
+	return fmt.Sprintf("%.2f", v)
+}
+
+func escapeSVGText(s string) string {
+	replacer := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
+	return replacer.Replace(s)
+}
+
+func aggregateSeries(points []float32, target int) []float32 {
+	if len(points) <= target || target < 2 {
+		return points
+	}
+	if target == 2 {
+		return []float32{points[0], points[len(points)-1]}
+	}
+
+	innerPoints := points[1 : len(points)-1]
+	innerTarget := target - 2
+	result := make([]float32, 0, target)
+	result = append(result, points[0])
+
+	if innerTarget > 0 && len(innerPoints) > 0 {
+		bucketSize := float64(len(innerPoints)) / float64(innerTarget)
+		for i := 0; i < innerTarget; i++ {
+			start := int(float64(i) * bucketSize)
+			end := int(float64(i+1) * bucketSize)
+			if i == innerTarget-1 {
+				end = len(innerPoints)
+			}
+			if end <= start {
+				end = start + 1
+			}
+			if end > len(innerPoints) {
+				end = len(innerPoints)
+			}
+			var sum float32
+			for _, point := range innerPoints[start:end] {
+				sum += point
+			}
+			result = append(result, sum/float32(end-start))
+		}
+	}
+
+	result = append(result, points[len(points)-1])
+	return result
 }
 
 const width = 72
@@ -163,6 +327,74 @@ func drawLine(x, y, width, height int, c *color.RGBA, img *image.RGBA) {
 			img.Set(x, y, c)
 		}
 	}
+}
+
+func drawPixel(x, y int, c color.Color, img *image.RGBA) {
+	if x < 0 || y < 0 || x >= img.Bounds().Dx() || y >= img.Bounds().Dy() {
+		return
+	}
+	img.Set(x, y, c)
+}
+
+func drawThickPixel(x, y, thickness int, c color.Color, img *image.RGBA) {
+	if thickness < 1 {
+		thickness = 1
+	}
+	radius := thickness / 2
+	for dx := -radius; dx <= radius; dx++ {
+		for dy := -radius; dy <= radius; dy++ {
+			drawPixel(x+dx, y+dy, c, img)
+		}
+	}
+}
+
+func drawVerticalLine(x, y0, y1 int, c color.Color, img *image.RGBA) {
+	if y0 > y1 {
+		y0, y1 = y1, y0
+	}
+	for y := y0; y <= y1; y++ {
+		drawPixel(x, y, c, img)
+	}
+}
+
+func drawVerticalGradient(x, y, width, height int, topColor, bottomColor *color.RGBA, img *image.RGBA) {
+	if height <= 1 {
+		return
+	}
+	for row := 0; row < height; row++ {
+		progress := float64(row) / float64(height-1)
+		clr := color.RGBA{
+			R: uint8(float64(topColor.R)*(1-progress) + float64(bottomColor.R)*progress),
+			G: uint8(float64(topColor.G)*(1-progress) + float64(bottomColor.G)*progress),
+			B: uint8(float64(topColor.B)*(1-progress) + float64(bottomColor.B)*progress),
+			A: uint8(float64(topColor.A)*(1-progress) + float64(bottomColor.A)*progress),
+		}
+		for col := 0; col < width; col++ {
+			drawPixel(x+col, y+row, clr, img)
+		}
+	}
+}
+
+func drawGuideLines(x, y, width, height int, img *image.RGBA) {
+	guideColor := &color.RGBA{255, 255, 255, 35}
+	for step := 0; step < 4; step++ {
+		col := x + step*(width-1)/3
+		drawVerticalLine(col, y, height-1, guideColor, img)
+	}
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func drawLabel(l *Label, img *image.RGBA) {

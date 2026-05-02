@@ -1,4 +1,5 @@
 {
+  "UUID": "com.exension.stocks",
   "Actions": [
     {
       "Icon": "icon",
@@ -7,7 +8,7 @@
         {
           "Image": "defaultImage",
           "TitleAlignment": "top",
-          "FontSize": "9",
+          "FontSize": 9,
           "TitleColor": "#b7b7b7",
           "ShowTitle": false
         }
@@ -18,15 +19,18 @@
     }
   ],
   "Author": "shayne",
+  "CodePath": "sdplugin-stocks",
   "CodePathWin": "sdplugin-stocks.exe",
   "CodePathMac": "sdplugin-stocks",
   "PropertyInspectorPath": "index_pi.html",
   "Description": "Display auto-updating stock ticker prices.",
+  "Category": "Stocks",
+  "CategoryIcon": "pluginIcon",
   "Name": "Stocks",
   "Icon": "pluginIcon",
   "URL": "https://github.com/shayne/stock-ticker-stream-deck-plugin",
   "SDKVersion": 2,
-  "Version": "1.2.1",
+  "Version": "1.2.1.0",
   "OS": [
     {
       "Platform": "windows",
@@ -38,6 +42,6 @@
     }
   ],
   "Software": {
-    "MinimumVersion": "4.1"
+    "MinimumVersion": "6.4"
   }
 }
