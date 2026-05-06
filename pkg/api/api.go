@@ -47,10 +47,13 @@ type Result struct {
 	StatusIsOpen bool
 }
 
+const defaultHTTPTimeout = 10 * time.Second
+
 var (
-	apiMu     sync.Mutex
-	apiKey    string
-	apiClient *finnhub.APIClient
+	apiMu      sync.Mutex
+	apiKey     string
+	apiClient  *finnhub.APIClient
+	httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 )
 
 func APIKey() string {
@@ -62,7 +65,11 @@ func APIKey() string {
 func SetAPIKey(key string) {
 	apiMu.Lock()
 	defer apiMu.Unlock()
-	log.Printf("Setting API key to %q\n", key)
+	if key == "" {
+		log.Println("Clearing API key")
+	} else {
+		log.Printf("Setting API key (%d chars)", len(key))
+	}
 	apiKey = key
 }
 
@@ -314,7 +321,7 @@ func fetchYahooChart(symbol, interval, rangeParam string) (*yahooChartResponse, 
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "stock-ticker-stream-deck-plugin/1.0")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

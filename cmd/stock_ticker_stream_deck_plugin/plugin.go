@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,13 +37,26 @@ type evSdpiCollection struct {
 	Value     string   `json:"value"`
 }
 
-type settingsType map[string]string
+type actionSettings struct {
+	Symbol   string `json:"symbol,omitempty"`
+	APIKey   string `json:"apikey,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	View     int    `json:"view,omitempty"`
+}
 
 const (
 	viewCurrent = 1
 	viewDay     = 2
 	viewMonth   = 3
 	viewYear    = 4
+)
+
+const (
+	statusRegular = "sun"
+	statusPre     = "pre"
+	statusAfter   = "moon"
+	arrowUp       = "^"
+	arrowDown     = "v"
 )
 
 func newPlugin(port, uuid, event, info string) *plugin {
@@ -55,10 +67,28 @@ func newPlugin(port, uuid, event, info string) *plugin {
 }
 
 func normalizeProvider(provider string) string {
-	if strings.ToLower(provider) == string(api.ProviderYahoo) {
+	if strings.EqualFold(provider, string(api.ProviderYahoo)) {
 		return string(api.ProviderYahoo)
 	}
 	return string(api.ProviderFinnhub)
+}
+
+func normalizeSettings(settings actionSettings) actionSettings {
+	settings.Symbol = strings.ToUpper(strings.TrimSpace(settings.Symbol))
+	settings.Provider = normalizeProvider(settings.Provider)
+	if settings.View < viewCurrent || settings.View > viewYear {
+		settings.View = viewCurrent
+	}
+	return settings
+}
+
+func settingsFromTile(t *tile) actionSettings {
+	return actionSettings{
+		Symbol:   t.symbol,
+		APIKey:   t.apikey,
+		Provider: t.provider,
+		View:     t.view,
+	}
 }
 
 func (p *plugin) renderTile(t *tile, symbol string, result *api.Result) (*[]byte, string) {
@@ -67,33 +97,33 @@ func (p *plugin) renderTile(t *tile, symbol string, result *api.Result) (*[]byte
 	changePercent := result.Quote.ChangePercent
 
 	statusColor := orange
-	status := "A"
+	status := statusAfter
 	if t.provider == string(api.ProviderYahoo) {
 		switch result.StatusText {
 		case "OPEN":
-			status = "O"
+			status = statusRegular
 		case "PRE":
-			status = "P"
+			status = statusPre
 		default:
 			statusColor = blue
-			status = "A"
+			status = statusAfter
 		}
 	} else {
 		switch result.MarketStatus.GetSession() {
 		case "regular":
-			status = "î¤£"
+			status = statusRegular
 		case "pre-market":
-			status = "î¤¶"
+			status = statusPre
 		default:
 			statusColor = blue
-			status = "î¤µ"
+			status = statusAfter
 		}
 	}
 
-	arrow := "î¤ˆ"
+	arrow := arrowDown
 	arrowColor := red
 	if change > 0 {
-		arrow = "î¤‰"
+		arrow = arrowUp
 		arrowColor = green
 	} else if change == 0 {
 		arrow = ""
@@ -142,11 +172,13 @@ func (p *plugin) goUpdateTiles(tiles []*tile) {
 		if t.symbol == "" {
 			continue
 		}
+
 		result, err := api.GetQuote(t.symbol, t.provider)
 		if err != nil {
-			log.Printf("Error getting quote for %s: %v\n", t.symbol, err)
+			log.Printf("error getting quote for %s: %v", t.symbol, err)
 			continue
 		}
+
 		b, svg := p.renderTile(t, t.symbol, result)
 		if svg != "" {
 			err = p.sd.SetImageDataURL(t.context, fmt.Sprintf("data:image/svg+xml,%s", url.PathEscape(svg)))
@@ -154,14 +186,15 @@ func (p *plugin) goUpdateTiles(tiles []*tile) {
 			err = p.sd.SetImage(t.context, *b)
 		}
 		if err != nil {
-			log.Fatalf("sd.SetImage: %v\n", err)
+			log.Printf("sd.SetImage for %s: %v", t.symbol, err)
 		}
 	}
 }
 
 func (p *plugin) startUpdateLoop() {
-	tick := time.Tick(5 * time.Minute)
-	for range tick {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
 		p.updateAllTiles()
 	}
 }
@@ -177,40 +210,33 @@ func (p *plugin) Run() {
 
 func (p plugin) OnConnected(*websocket.Conn) {}
 
-func parseView(settings settingsType) int {
-	view, err := strconv.Atoi(settings["view"])
-	if err != nil || view < viewCurrent || view > viewYear {
-		return viewCurrent
-	}
-	return view
-}
-
 func (p plugin) OnWillAppear(ev *streamdeck.EvWillAppear) {
 	if t, ok := p.tiles[ev.Context]; ok {
 		p.updateTiles([]*tile{t})
 		return
 	}
 
-	var settings settingsType
+	var settings actionSettings
 	err := json.Unmarshal(*ev.Payload.Settings, &settings)
 	if err != nil {
 		log.Println("OnWillAppear settings unmarshal", err)
 	}
+	settings = normalizeSettings(settings)
 
 	var updateAll bool
 	apiKey := api.APIKey()
-	if apiKey == "" && settings["apikey"] != "" {
-		apiKey = settings["apikey"]
+	if apiKey == "" && settings.APIKey != "" {
+		apiKey = settings.APIKey
 		api.SetAPIKey(apiKey)
 		updateAll = true
 	}
 
 	t := &tile{
 		context:  ev.Context,
-		symbol:   settings["symbol"],
+		symbol:   settings.Symbol,
 		apikey:   apiKey,
-		provider: normalizeProvider(settings["provider"]),
-		view:     parseView(settings),
+		provider: settings.Provider,
+		view:     settings.View,
 	}
 	p.tiles[ev.Context] = t
 
@@ -219,9 +245,9 @@ func (p plugin) OnWillAppear(ev *streamdeck.EvWillAppear) {
 			tile.apikey = apiKey
 		}
 		p.updateAllTiles()
-	} else {
-		p.updateTiles([]*tile{t})
+		return
 	}
+	p.updateTiles([]*tile{t})
 }
 
 func (p plugin) OnKeyDown(ev *streamdeck.EvKeyPress) {
@@ -229,16 +255,13 @@ func (p plugin) OnKeyDown(ev *streamdeck.EvKeyPress) {
 	if t == nil {
 		return
 	}
+
 	t.view++
 	if t.view > viewYear {
 		t.view = viewCurrent
 	}
-	settings := settingsType{
-		"symbol":   t.symbol,
-		"apikey":   t.apikey,
-		"provider": t.provider,
-		"view":     strconv.Itoa(t.view),
-	}
+
+	settings := settingsFromTile(t)
 	err := p.sd.SetSettings(ev.Context, &settings)
 	if err != nil {
 		log.Printf("setSettings on keyDown: %v", err)
@@ -257,7 +280,7 @@ func (p plugin) updateAllTiles() {
 func (p plugin) OnTitleParametersDidChange(ev *streamdeck.EvTitleParametersDidChange) {
 	t := p.tiles[ev.Context]
 	if t == nil {
-		log.Println("OnTitleParametersDidChange: Tile not found")
+		log.Println("OnTitleParametersDidChange: tile not found")
 		return
 	}
 	t.title = ev.Payload.Title
@@ -265,11 +288,8 @@ func (p plugin) OnTitleParametersDidChange(ev *streamdeck.EvTitleParametersDidCh
 
 func (p plugin) OnPropertyInspectorConnected(ev *streamdeck.EvSendToPlugin) {
 	if t, ok := p.tiles[ev.Context]; ok {
-		settings := make(settingsType)
-		settings["symbol"] = t.symbol
-		settings["apikey"] = api.APIKey()
-		settings["provider"] = t.provider
-		settings["view"] = strconv.Itoa(t.view)
+		settings := settingsFromTile(t)
+		settings.APIKey = api.APIKey()
 		p.sd.SendToPropertyInspector(ev.Action, ev.Context, &settings)
 	}
 }
@@ -279,59 +299,57 @@ func (p plugin) OnSendToPlugin(ev *streamdeck.EvSendToPlugin) {
 	err := json.Unmarshal(*ev.Payload, &payload)
 	if err != nil {
 		log.Println("OnSendToPlugin unmarshal", err)
+		return
 	}
+
 	data, ok := payload["sdpi_collection"]
 	if !ok {
 		return
 	}
 
-	sdpi := evSdpiCollection{}
+	var sdpi evSdpiCollection
 	err = json.Unmarshal(*data, &sdpi)
 	if err != nil {
 		log.Println("SDPI unmarshal", err)
+		return
 	}
 
 	t := p.tiles[ev.Context]
 	if t == nil {
-		log.Printf("Tile was nil, creating new tile for %s\n", ev.Context)
-		p.tiles[ev.Context] = &tile{context: ev.Context, provider: string(api.ProviderFinnhub), view: viewCurrent}
-		t = p.tiles[ev.Context]
+		log.Printf("tile was nil, creating new tile for %s", ev.Context)
+		t = &tile{
+			context:  ev.Context,
+			provider: string(api.ProviderFinnhub),
+			view:     viewCurrent,
+		}
+		p.tiles[ev.Context] = t
 	}
 
-	settings := make(settingsType)
-	settings["apikey"] = api.APIKey()
-	settings["symbol"] = t.symbol
-	settings["provider"] = t.provider
-	settings["view"] = strconv.Itoa(t.view)
+	settings := settingsFromTile(t)
+	settings.APIKey = api.APIKey()
 
 	var updateAll bool
 	switch sdpi.Key {
 	case "symbol":
-		symbol := strings.ToUpper(sdpi.Value)
-		t.symbol = symbol
-		settings["symbol"] = symbol
+		t.symbol = strings.ToUpper(strings.TrimSpace(sdpi.Value))
+		settings.Symbol = t.symbol
 	case "apikey":
-		apikey := sdpi.Value
-		api.SetAPIKey(apikey)
+		t.apikey = strings.TrimSpace(sdpi.Value)
+		settings.APIKey = t.apikey
+		api.SetAPIKey(t.apikey)
 		updateAll = true
-		t.apikey = apikey
-		settings["apikey"] = apikey
 	case "provider":
-		provider := normalizeProvider(sdpi.Value)
-		t.provider = provider
-		settings["provider"] = provider
+		t.provider = normalizeProvider(sdpi.Value)
+		settings.Provider = t.provider
 	}
 
 	if updateAll {
 		apikey := api.APIKey()
 		for _, tile := range p.tiles {
 			tile.apikey = apikey
-			err := p.sd.SetSettings(tile.context, settingsType{
-				"symbol":   tile.symbol,
-				"apikey":   apikey,
-				"provider": tile.provider,
-				"view":     strconv.Itoa(tile.view),
-			})
+			current := settingsFromTile(tile)
+			current.APIKey = apikey
+			err := p.sd.SetSettings(tile.context, current)
 			if err != nil {
 				log.Printf("error setting settings: %v", err)
 			}
@@ -340,10 +358,11 @@ func (p plugin) OnSendToPlugin(ev *streamdeck.EvSendToPlugin) {
 		return
 	}
 
-	log.Printf("saving settings: %v", settings)
+	log.Printf("saving settings: %+v", settings)
 	err = p.sd.SetSettings(ev.Context, &settings)
 	if err != nil {
-		log.Fatalf("setSettings: %v", err)
+		log.Printf("setSettings: %v", err)
+		return
 	}
 	p.updateTiles([]*tile{t})
 }

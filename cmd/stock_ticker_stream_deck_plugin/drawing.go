@@ -29,6 +29,13 @@ var (
 // DrawTile renders the tile given context and stock data
 func DrawTile(title string, price, change, changePercent float32, status string, statusColor *color.RGBA, arrow string, arrowColor *color.RGBA) *[]byte {
 	img := image.NewRGBA(image.Rect(0, 0, int(width), int(width)))
+	backgroundAccent := &color.RGBA{40, 7, 10, 255}
+	if changePercent >= 0 {
+		backgroundAccent = &color.RGBA{14, 32, 19, 255}
+	}
+	drawVerticalGradient(0, 0, int(width), int(width), &color.RGBA{0, 0, 0, 255}, backgroundAccent, img)
+	priceText := fmt.Sprintf("%.2f", price)
+	priceFontSize := fitPriceFontSize(priceText, "Lato-Bold.ttf", 14, 42)
 	drawLabel(&Label{
 		text:     title,
 		fontName: "Muli-ExtraBold.ttf",
@@ -37,29 +44,15 @@ func DrawTile(title string, price, change, changePercent float32, status string,
 		y:        25,
 		clr:      white,
 	}, img)
-	drawLabel(&Label{
-		text:     status,
-		fontName: "icons.ttf",
-		fontSize: 15,
-		x:        57,
-		y:        25,
-		clr:      statusColor,
-	}, img)
+	drawStatusIndicator(60, 15, status, statusColor, img)
 	drawLine(5, 30, 11, 2, &color.RGBA{102, 102, 102, 255}, img)
 	if arrow != "" {
-		drawLabel(&Label{
-			text:     arrow,
-			fontName: "icons.ttf",
-			fontSize: 15,
-			x:        57,
-			y:        52,
-			clr:      arrowColor,
-		}, img)
+		drawTriangleIndicator(60, 45, arrow, arrowColor, img)
 	}
 	drawLabel(&Label{
-		text:     fmt.Sprintf("%.2f", price),
+		text:     priceText,
 		fontName: "Lato-Bold.ttf",
-		fontSize: 14,
+		fontSize: priceFontSize,
 		x:        4,
 		y:        50,
 		clr:      white,
@@ -153,6 +146,7 @@ func BuildHistoryTileSVG(title string, price float32, points []float32, changePe
 <text x="6" y="20" font-size="17" font-weight="900" fill="white" font-family="Arial">%s</text>
 <text x="84" y="20" font-size="12" font-weight="900" fill="white" font-family="Arial">%s</text>
 <text x="6" y="42" font-size="17" font-weight="700" fill="white" font-family="Arial">%s</text>
+<rect x="3" y="73" width="46" height="18" rx="4" ry="4" fill="#000000" fill-opacity="0.42"/>
 <text x="6" y="88" font-size="17" font-weight="700" fill="%s" font-family="Arial">%s</text>
 <text x="84" y="88" font-size="17" font-weight="900" fill="%s" font-family="Arial">%s</text>
 </svg>`,
@@ -329,6 +323,103 @@ func drawLine(x, y, width, height int, c *color.RGBA, img *image.RGBA) {
 	}
 }
 
+func drawTriangleIndicator(x, y int, direction string, c *color.RGBA, img *image.RGBA) {
+	size := 8
+	switch direction {
+	case "^":
+		for row := 0; row < size; row++ {
+			startX := x - row
+			endX := x + row
+			for px := startX; px <= endX; px++ {
+				drawPixel(px, y+row, c, img)
+			}
+		}
+	case "v":
+		for row := 0; row < size; row++ {
+			startX := x - (size - 1 - row)
+			endX := x + (size - 1 - row)
+			for px := startX; px <= endX; px++ {
+				drawPixel(px, y+row, c, img)
+			}
+		}
+	}
+}
+
+func drawStatusIndicator(x, y int, status string, c *color.RGBA, img *image.RGBA) {
+	switch status {
+	case "sun":
+		drawSunIndicator(x, y, c, img)
+	case "pre":
+		drawPreMarketIndicator(x, y, c, img)
+	case "moon":
+		drawMoonIndicator(x, y, c, img)
+	}
+}
+
+func drawSunIndicator(cx, cy int, c *color.RGBA, img *image.RGBA) {
+	for dx := -3; dx <= 3; dx++ {
+		for dy := -3; dy <= 3; dy++ {
+			if dx*dx+dy*dy <= 8 {
+				drawPixel(cx+dx, cy+dy, c, img)
+			}
+		}
+	}
+	for _, ray := range [][4]int{
+		{0, -6, 0, -4},
+		{0, 4, 0, 6},
+		{-6, 0, -4, 0},
+		{4, 0, 6, 0},
+		{-5, -5, -4, -4},
+		{4, -5, 5, -4},
+		{-5, 4, -4, 5},
+		{4, 4, 5, 5},
+	} {
+		drawSegment(cx+ray[0], cy+ray[1], cx+ray[2], cy+ray[3], c, img)
+	}
+}
+
+func drawPreMarketIndicator(cx, cy int, c *color.RGBA, img *image.RGBA) {
+	for dx := -5; dx <= 5; dx++ {
+		for dy := -5; dy <= 5; dy++ {
+			distance := dx*dx + dy*dy
+			if distance >= 18 && distance <= 28 {
+				drawPixel(cx+dx, cy+dy, c, img)
+			}
+		}
+	}
+	for dx := 0; dx <= 5; dx++ {
+		drawPixel(cx+dx, cy, c, img)
+	}
+	for dy := -5; dy <= 0; dy++ {
+		drawPixel(cx, cy+dy, c, img)
+	}
+}
+
+func drawMoonIndicator(cx, cy int, c *color.RGBA, img *image.RGBA) {
+	for dx := -4; dx <= 4; dx++ {
+		for dy := -5; dy <= 5; dy++ {
+			if dx*dx+dy*dy <= 22 && (dx+2)*(dx+2)+dy*dy >= 18 {
+				drawPixel(cx+dx, cy+dy, c, img)
+			}
+		}
+	}
+}
+
+func drawSegment(x0, y0, x1, y1 int, c color.Color, img *image.RGBA) {
+	dx := x1 - x0
+	dy := y1 - y0
+	steps := max(abs(dx), abs(dy))
+	if steps == 0 {
+		drawPixel(x0, y0, c, img)
+		return
+	}
+	for i := 0; i <= steps; i++ {
+		x := x0 + dx*i/steps
+		y := y0 + dy*i/steps
+		drawPixel(x, y, c, img)
+	}
+}
+
 func drawPixel(x, y int, c color.Color, img *image.RGBA) {
 	if x < 0 || y < 0 || x >= img.Bounds().Dx() || y >= img.Bounds().Dy() {
 		return
@@ -383,6 +474,27 @@ func drawGuideLines(x, y, width, height int, img *image.RGBA) {
 	}
 }
 
+func fitPriceFontSize(text, fontName string, defaultSize float64, maxWidth float64) float64 {
+	size := defaultSize
+	for size > 8 && measureTextWidth(text, fontName, size) > maxWidth {
+		size -= 0.5
+	}
+	return size
+}
+
+func measureTextWidth(text, fontName string, fontSize float64) float64 {
+	face := shared().face(fontName, fontSize)
+	var width float64
+	for _, r := range text {
+		advance, ok := face.GlyphAdvance(r)
+		if !ok {
+			continue
+		}
+		width += unfix(advance)
+	}
+	return width
+}
+
 func max(a, b int) int {
 	if a > b {
 		return a
@@ -395,6 +507,13 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func drawLabel(l *Label, img *image.RGBA) {

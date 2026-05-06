@@ -1,4 +1,5 @@
 {
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "UUID": "com.exension.stocks",
   "Actions": [
     {
@@ -29,6 +30,7 @@
   "Name": "Stocks",
   "Icon": "pluginIcon",
   "URL": "https://github.com/shayne/stock-ticker-stream-deck-plugin",
+  "SupportURL": "https://github.com/shayne/stock-ticker-stream-deck-plugin/issues",
   "SDKVersion": 2,
   "Version": "1.2.1.0",
   "OS": [

@@ -12,10 +12,10 @@ $macBinary = Join-Path $pluginDir "sdplugin-stocks"
 if (-not $SkipBuild) {
     Push-Location $repoRoot
     try {
-        go build -o $windowsBinary github.com/shayne/stock-ticker-stream-deck-plugin/cmd/stock_ticker_stream_deck_plugin
+        go build -trimpath -o $windowsBinary .\cmd\stock_ticker_stream_deck_plugin
         $env:GOOS = "darwin"
         $env:GOARCH = "amd64"
-        go build -o $macBinary github.com/shayne/stock-ticker-stream-deck-plugin/cmd/stock_ticker_stream_deck_plugin
+        go build -trimpath -o $macBinary .\cmd\stock_ticker_stream_deck_plugin
     }
     finally {
         Remove-Item Env:GOOS -ErrorAction SilentlyContinue

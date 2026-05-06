@@ -29,13 +29,13 @@ func main() {
 		appdata = os.Getenv("HOME")
 		logpath = filepath.Join(appdata, "Library/Application Support/com.elgato.StreamDeck/Plugins/com.exension.stocks.sdPlugin/stocks.log")
 	}
-	f, err := os.OpenFile(logpath, os.O_RDWR|os.O_CREATE, 0666)
+	err = os.MkdirAll(filepath.Dir(logpath), 0755)
+	if err != nil {
+		log.Fatalf("Create log directory: %v", err)
+	}
+	f, err := os.OpenFile(logpath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatalf("OpenFile Log: %v", err)
-	}
-	err = f.Truncate(0)
-	if err != nil {
-		log.Fatalf("Truncate Log: %v", err)
 	}
 	defer func() {
 		err := f.Close()
@@ -44,7 +44,7 @@ func main() {
 		}
 	}()
 	log.SetOutput(f)
-	log.SetFlags(0)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	flag.Parse()
 
