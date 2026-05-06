@@ -39,7 +39,7 @@ npm run pack
 
 - `Yahoo` does not require an API key.
 - `Finnhub` requires an API key and some historical endpoints may depend on the account tier.
-- The supported local workflow is the Elgato CLI pipeline above; the legacy `Makefile` flow is retained only for reference.
+- The supported local workflow is the Elgato CLI pipeline above.
 
 ## Repository layout
 

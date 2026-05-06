@@ -23,7 +23,6 @@ var (
 	green  = &color.RGBA{62, 158, 62, 255}
 	red    = &color.RGBA{181, 26, 40, 255}
 	blue   = &color.RGBA{61, 117, 164, 255}
-	grey   = &color.RGBA{255, 255, 255, 255}
 )
 
 // DrawTile renders the tile given context and stock data
@@ -427,27 +426,6 @@ func drawPixel(x, y int, c color.Color, img *image.RGBA) {
 	img.Set(x, y, c)
 }
 
-func drawThickPixel(x, y, thickness int, c color.Color, img *image.RGBA) {
-	if thickness < 1 {
-		thickness = 1
-	}
-	radius := thickness / 2
-	for dx := -radius; dx <= radius; dx++ {
-		for dy := -radius; dy <= radius; dy++ {
-			drawPixel(x+dx, y+dy, c, img)
-		}
-	}
-}
-
-func drawVerticalLine(x, y0, y1 int, c color.Color, img *image.RGBA) {
-	if y0 > y1 {
-		y0, y1 = y1, y0
-	}
-	for y := y0; y <= y1; y++ {
-		drawPixel(x, y, c, img)
-	}
-}
-
 func drawVerticalGradient(x, y, width, height int, topColor, bottomColor *color.RGBA, img *image.RGBA) {
 	if height <= 1 {
 		return
@@ -463,14 +441,6 @@ func drawVerticalGradient(x, y, width, height int, topColor, bottomColor *color.
 		for col := 0; col < width; col++ {
 			drawPixel(x+col, y+row, clr, img)
 		}
-	}
-}
-
-func drawGuideLines(x, y, width, height int, img *image.RGBA) {
-	guideColor := &color.RGBA{255, 255, 255, 35}
-	for step := 0; step < 4; step++ {
-		col := x + step*(width-1)/3
-		drawVerticalLine(col, y, height-1, guideColor, img)
 	}
 }
 
@@ -497,13 +467,6 @@ func measureTextWidth(text, fontName string, fontSize float64) float64 {
 
 func max(a, b int) int {
 	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a < b {
 		return a
 	}
 	return b

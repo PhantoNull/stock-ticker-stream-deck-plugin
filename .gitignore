@@ -2,6 +2,7 @@
 /vendor
 /DistributionTool.exe
 .DS_Store
+/.documentation/
 /.vscode/.tmp/
 /com.exension.stocks.sdPlugin/stocks.log
 /release/*.streamDeckPlugin
