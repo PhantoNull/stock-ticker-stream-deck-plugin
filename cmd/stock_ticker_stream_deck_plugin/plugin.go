@@ -145,7 +145,7 @@ func (p *plugin) renderTile(t *tile, symbol string, result *api.Result) (*[]byte
 			seriesRange = api.RangeYear
 			rangeLabel = "Y"
 		}
-		series, err := api.GetSeries(symbol, t.provider, seriesRange, price)
+		series, err := api.GetSeries(symbol, t.provider, seriesRange, result.Quote)
 		if err != nil {
 			log.Printf("error getting series for %s: %v", symbol, err)
 		} else if len(series.Points) > 1 {
