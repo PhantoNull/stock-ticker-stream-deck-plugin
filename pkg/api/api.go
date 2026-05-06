@@ -31,6 +31,7 @@ const (
 
 type Series struct {
 	Points        []float32
+	BasePrice     float32
 	ChangePercent float32
 }
 
@@ -179,17 +180,17 @@ func getFinnhubQuote(symbol string) (*Result, error) {
 	}
 }
 
-func GetSeries(symbol, provider string, seriesRange SeriesRange, currentPrice float32) (*Series, error) {
+func GetSeries(symbol, provider string, seriesRange SeriesRange, quote Quote) (*Series, error) {
 	cacheKey := fmt.Sprintf("%s:%s:%s", normalizeProvider(provider), symbol, seriesRange)
 	seriesMu.Lock()
 	cached, ok := seriesCache[cacheKey]
 	if ok && time.Now().Before(cached.expiration) {
 		series := cached.series
 		if len(series.Points) > 0 {
-			series.Points[len(series.Points)-1] = currentPrice
+			series.Points[len(series.Points)-1] = quote.Price
 		}
-		if len(series.Points) > 0 && series.Points[0] != 0 {
-			series.ChangePercent = ((currentPrice - series.Points[0]) / series.Points[0]) * 100
+		if series.BasePrice != 0 {
+			series.ChangePercent = ((quote.Price - series.BasePrice) / series.BasePrice) * 100
 		}
 		seriesMu.Unlock()
 		return &series, nil
@@ -203,9 +204,9 @@ func GetSeries(symbol, provider string, seriesRange SeriesRange, currentPrice fl
 	)
 	switch normalizeProvider(provider) {
 	case ProviderYahoo:
-		series, expiration, err = getYahooSeries(symbol, seriesRange, currentPrice)
+		series, expiration, err = getYahooSeries(symbol, seriesRange, quote)
 	default:
-		series, expiration, err = getFinnhubSeries(symbol, seriesRange, currentPrice)
+		series, expiration, err = getFinnhubSeries(symbol, seriesRange, quote)
 	}
 	if err != nil {
 		return nil, err
@@ -219,7 +220,7 @@ func GetSeries(symbol, provider string, seriesRange SeriesRange, currentPrice fl
 	return series, nil
 }
 
-func getFinnhubSeries(symbol string, seriesRange SeriesRange, currentPrice float32) (*Series, time.Duration, error) {
+func getFinnhubSeries(symbol string, seriesRange SeriesRange, quote Quote) (*Series, time.Duration, error) {
 	service := finnhubService()
 	if service == nil {
 		return nil, 0, fmt.Errorf("API client was nil")
@@ -239,7 +240,7 @@ func getFinnhubSeries(symbol string, seriesRange SeriesRange, currentPrice float
 		from = now.AddDate(0, -1, 0)
 		expiration = 1 * time.Hour
 	case RangeYear:
-		resolution = "W"
+		resolution = "D"
 		from = now.AddDate(-1, 0, 0)
 		expiration = 6 * time.Hour
 	}
@@ -264,17 +265,18 @@ func getFinnhubSeries(symbol string, seriesRange SeriesRange, currentPrice float
 		if len(points) == 0 {
 			return nil, 0, fmt.Errorf("no candles returned for %s", symbol)
 		}
-		points[len(points)-1] = currentPrice
+		points[len(points)-1] = quote.Price
 		base := points[0]
-		if opens := candles.GetO(); len(opens) > 0 && opens[0] > 0 {
-			base = opens[0]
+		if seriesRange == RangeDay {
+			base = quote.Price - quote.Change
 		}
 		if base == 0 {
 			base = points[0]
 		}
 		return &Series{
 			Points:        points,
-			ChangePercent: ((currentPrice - base) / base) * 100,
+			BasePrice:     base,
+			ChangePercent: ((quote.Price - base) / base) * 100,
 		}, expiration, nil
 	}
 }
@@ -375,7 +377,7 @@ func getYahooQuote(symbol string) (*Result, error) {
 	}, nil
 }
 
-func getYahooSeries(symbol string, seriesRange SeriesRange, currentPrice float32) (*Series, time.Duration, error) {
+func getYahooSeries(symbol string, seriesRange SeriesRange, quote Quote) (*Series, time.Duration, error) {
 	interval := "1d"
 	rangeParam := "1mo"
 	expiration := 1 * time.Hour
@@ -389,7 +391,7 @@ func getYahooSeries(symbol string, seriesRange SeriesRange, currentPrice float32
 		rangeParam = "1mo"
 		expiration = 1 * time.Hour
 	case RangeYear:
-		interval = "1wk"
+		interval = "1d"
 		rangeParam = "1y"
 		expiration = 6 * time.Hour
 	}
@@ -417,12 +419,16 @@ func getYahooSeries(symbol string, seriesRange SeriesRange, currentPrice float32
 	if len(points) == 0 {
 		return nil, 0, fmt.Errorf("no closes returned")
 	}
-	points[len(points)-1] = currentPrice
+	points[len(points)-1] = quote.Price
+	if seriesRange == RangeDay {
+		base = quote.Price - quote.Change
+	}
 	if base == 0 {
 		base = points[0]
 	}
 	return &Series{
 		Points:        points,
-		ChangePercent: ((currentPrice - base) / base) * 100,
+		BasePrice:     base,
+		ChangePercent: ((quote.Price - base) / base) * 100,
 	}, expiration, nil
 }
