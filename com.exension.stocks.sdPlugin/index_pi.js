@@ -19,8 +19,7 @@ function connectElgatoStreamDeckSocket(
   uuid = inUUID;
   actionInfo = JSON.parse(inActionInfo);
 
-  const info = JSON.parse(inInfo);
-  addDynamicStyles(info.colors);
+  JSON.parse(inInfo);
   cacheElements();
   bindEvents();
 
@@ -127,18 +126,3 @@ window.addEventListener("beforeunload", function (event) {
   event.preventDefault();
   sendValueToPlugin("propertyInspectorWillDisappear", "property_inspector");
 });
-
-function addDynamicStyles(colors) {
-  const style = document.createElement("style");
-  style.id = "sdpi-dynamic-styles";
-  style.textContent = `
-    td.selected,
-    td.selected:hover,
-    li.selected:hover,
-    li.selected {
-      color: white;
-      background-color: ${colors.highlightColor};
-    }
-  `;
-  document.head.appendChild(style);
-}

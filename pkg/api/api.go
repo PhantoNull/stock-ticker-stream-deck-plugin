@@ -45,7 +45,6 @@ type Result struct {
 	Quote        Quote
 	MarketStatus finnhub.MarketStatus
 	StatusText   string
-	StatusIsOpen bool
 }
 
 const defaultHTTPTimeout = 10 * time.Second
@@ -359,10 +358,8 @@ func getYahooQuote(symbol string) (*Result, error) {
 	}
 	now := time.Now().Unix()
 	statusText := "POST"
-	isOpen := false
 	if now >= result.Meta.CurrentTradingPeriod.Regular.Start && now <= result.Meta.CurrentTradingPeriod.Regular.End {
 		statusText = "OPEN"
-		isOpen = true
 	} else if now < result.Meta.CurrentTradingPeriod.Regular.Start {
 		statusText = "PRE"
 	}
@@ -372,8 +369,7 @@ func getYahooQuote(symbol string) (*Result, error) {
 			Change:        change,
 			ChangePercent: changePercent,
 		},
-		StatusText:   statusText,
-		StatusIsOpen: isOpen,
+		StatusText: statusText,
 	}, nil
 }
 
