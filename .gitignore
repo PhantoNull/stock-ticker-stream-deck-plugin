@@ -1,8 +1,9 @@
-/com.exension.stocks.sdPlugin/sdplugin-stock*
 /vendor
 /DistributionTool.exe
 .DS_Store
 /.documentation/
 /.vscode/.tmp/
-/com.exension.stocks.sdPlugin/stocks.log
 /release/*.streamDeckPlugin
+/node_modules/
+/com.exension.stocks.v2.sdPlugin/bin/
+/com.exension.stocks.v2.sdPlugin/logs/

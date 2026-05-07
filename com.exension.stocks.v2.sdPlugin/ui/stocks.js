@@ -1,12 +1,17 @@
 let websocket = null;
 let uuid = null;
 let actionInfo = {};
+let currentSettings = {};
 
 const fields = {
   symbol: null,
   provider: null,
   apikey: null,
   help: null,
+};
+const saveTimers = {
+  symbol: null,
+  apikey: null,
 };
 
 function connectElgatoStreamDeckSocket(
@@ -22,6 +27,7 @@ function connectElgatoStreamDeckSocket(
   JSON.parse(inInfo);
   cacheElements();
   bindEvents();
+  applySettings(actionInfo && actionInfo.payload ? actionInfo.payload.settings || {} : {});
 
   websocket = new WebSocket(`ws://localhost:${inPort}`);
   websocket.onopen = function () {
@@ -31,7 +37,6 @@ function connectElgatoStreamDeckSocket(
         uuid: inUUID,
       })
     );
-    sendValueToPlugin("propertyInspectorConnected", "property_inspector");
   };
 
   websocket.onmessage = function (evt) {
@@ -53,9 +58,10 @@ function cacheElements() {
 }
 
 function bindEvents() {
-  fields.symbol.addEventListener("change", function () {
-    sendSetting("symbol", fields.symbol.value.trim().toUpperCase());
-    fields.symbol.value = fields.symbol.value.trim().toUpperCase();
+  fields.symbol.addEventListener("input", function () {
+    const next = fields.symbol.value.trim().toUpperCase();
+    fields.symbol.value = next;
+    queueSetting("symbol", next, "symbol");
   });
 
   fields.provider.addEventListener("change", function () {
@@ -63,19 +69,28 @@ function bindEvents() {
     syncProviderUI(fields.provider.value);
   });
 
-  fields.apikey.addEventListener("change", function () {
-    sendSetting("apikey", fields.apikey.value.trim());
+  fields.apikey.addEventListener("input", function () {
+    const next = fields.apikey.value.trim();
+    fields.apikey.value = next;
+    queueSetting("apikey", next, "apikey");
   });
 }
 
 function applySettings(payload) {
+  currentSettings = {
+    ...currentSettings,
+    ...payload,
+  };
+
   if (typeof payload.symbol === "string") {
     fields.symbol.value = payload.symbol;
   }
   if (typeof payload.provider === "string") {
     fields.provider.value = payload.provider;
   }
-  if (typeof payload.apikey === "string") {
+  if (typeof payload.apiKey === "string") {
+    fields.apikey.value = payload.apiKey;
+  } else if (typeof payload.apikey === "string") {
     fields.apikey.value = payload.apikey;
   }
 
@@ -91,38 +106,34 @@ function syncProviderUI(provider) {
     : "Finnhub requires an API key.";
 }
 
-function sendSetting(key, value) {
-  sendValueToPlugin(
-    {
-      key: key,
-      value: value,
-      group: false,
-      index: 0,
-      selection: [],
-      checked: false,
-    },
-    "sdpi_collection"
-  );
+function queueSetting(key, value, timerKey) {
+  if (saveTimers[timerKey]) {
+    clearTimeout(saveTimers[timerKey]);
+  }
+
+  saveTimers[timerKey] = setTimeout(function () {
+    sendSetting(key, value);
+    saveTimers[timerKey] = null;
+  }, 250);
 }
 
-function sendValueToPlugin(value, param) {
+function sendSetting(key, value) {
+  const nextSettings = {
+    ...currentSettings,
+    [key === "apikey" ? "apiKey" : key]: value,
+  };
+
+  currentSettings = nextSettings;
+
   if (!websocket || websocket.readyState !== WebSocket.OPEN) {
     return;
   }
 
   websocket.send(
     JSON.stringify({
-      action: actionInfo.action,
-      event: "sendToPlugin",
+      event: "setSettings",
       context: uuid,
-      payload: {
-        [param]: value,
-      },
+      payload: nextSettings,
     })
   );
 }
-
-window.addEventListener("beforeunload", function (event) {
-  event.preventDefault();
-  sendValueToPlugin("propertyInspectorWillDisappear", "property_inspector");
-});
