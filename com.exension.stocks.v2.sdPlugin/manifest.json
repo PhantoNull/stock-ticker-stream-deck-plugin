@@ -3,7 +3,7 @@
   "UUID": "com.exension.stocks.v2",
   "Name": "Stocks",
   "Description": "Stream Deck plugin for stock quotes and multi-view charts.",
-  "Version": "0.0.1.0",
+  "Version": "2.0.1.0",
   "Author": "PhantoNull",
   "Icon": "imgs/pluginIcon",
   "Category": "Stocks",
