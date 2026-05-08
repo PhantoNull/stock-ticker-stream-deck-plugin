@@ -1,13 +1,14 @@
 {
   "name": "stock-ticker-stream-deck-plugin",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Official Stream Deck SDK implementation of the stock ticker plugin.",
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "validate": "streamdeck validate --no-update-check ./com.exension.stocks.v2.sdPlugin",
-    "link": "streamdeck link ./com.exension.stocks.v2.sdPlugin"
+    "link": "streamdeck link ./com.exension.stocks.v2.sdPlugin",
+    "pack": "streamdeck pack --no-update-check ./com.exension.stocks.v2.sdPlugin -o ./release -f"
   },
   "dependencies": {
     "@elgato/streamdeck": "^2.0.0"
